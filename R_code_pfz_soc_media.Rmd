@@ -1,30 +1,192 @@
 ---
-title: "Untitled"
+title: "pf_soc_med_BC_US_code"
 author: "Andy Cox"
 date: "6 September 2016"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+
 knitr::opts_chunk$set(echo = TRUE)
+
+## R Code  Social Media Data Mining of US Breast Cancer Posts
+###Population HER2-  HR+  Advanced or Metastatic  (Stage iv)
+
+First we select the target population from the overall BC posts, the US site breastcancer.org is used as it allows easy identification of the target population from the footnote details supplied by most board users
+
+```{r}
+###########################################
+#Search and extract posts wiht a term######
+###########################################
+
+rm(list = ls())
+
+setwd("/Users/AndyC/Dropbox/rdata/SMposts/BreastCancer_US/results")#3.5GB   1,045,114 posts
+
+#5.563 GB of data     2,534,028 Posts
+fls1<-dir()
+for(f in fls1){
+  dat1<-read.delim(file=f,header=T,sep=",",)
+  dat1<-dat1[,-1]
+  if(f==fls1[1]){
+    #Create data frame to hold posts containing the keywords
+    dat2<-dat3<-data.frame(matrix("",0,ncol(dat1)))
+    colnames(dat2)<-colnames(dat1)
+    colnames(dat3)<-colnames(dat1) 
+  }
+  
+  field1<-as.character(dat1$info_block)#XXXXXXXXXXXXXX
+  sel1<-grep("stage iv",field1,ignore.case=T, perl = FALSE, value = FALSE,
+             fixed = FALSE)
+
+  dat2<-rbind(dat2,dat1[sel1,])
+}
+
+field1<-as.character(dat2$info_block)#XXXXXXXXXXXXXX
+sel1<-grep(" her2-",field1,ignore.case=T, perl = FALSE, value = FALSE,
+           fixed = FALSE)
+dat3<-dat2[sel1,]
+dim(dat3)
+
+field1<-as.character(dat3$info_block)#XXXXXXXXXXXXXX
+sel1a<-grep(" hr+",field1,ignore.case=T, perl = FALSE, value = FALSE,
+           fixed = FALSE)
+length(sel1a)
+
+field1<-as.character(dat3$info_block)#XXXXXXXXXXXXXX
+sel1b<-grep(" er+",field1,ignore.case=T, perl = FALSE, value = FALSE,
+           fixed = FALSE)
+length(sel1b)
+
+field1<-as.character(dat3$info_block)#XXXXXXXXXXXXXX
+sel1c<-grep(" pr+",field1,ignore.case=T, perl = FALSE, value = FALSE,
+           fixed = FALSE)
+length(sel1c)           
+           
+dat4<-dat3[c(sel1a,sel1b,sel1c),]
+dim(dat4)
+
+head(dat4$info_block,100)
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+write.table(dat4, file = "BCher_hr.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+```
+Open the file containing posts from the target population only, supressing conversion to factors
+
+```{r}
+options(stringsASFactors=FALSE)
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+dat4<-read.delim(file="BCher_hr2.txt",header=T,sep=",",as.is=TRUE)
+#Some decriptives
+nrow(dat4)
+length(unique(dat4$username))
+summary(as.numeric(table(dat4$username)))
 ```
 
-## R Markdown
+214,896 posts from 1,156 users wiht a median of 8 posts each and a mead of 185.6 posts per user. Minimum of 1 post and maximum of 18,050 posts.
+Apparently with a total of 24,164,963,441 views
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r}
+library(tm)
+library(slam)
+wd_dict_pth<-"/Users/AndyC/Dropbox/rdata/text_analysis_ref/most_common_words/google-10000-english-master/google-10000-english-usa.txt"
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+wds1<-as.character(dat4$post)
 
-```{r cars}
-summary(cars)
+#wds2<-paste(wds1,collapse=" ")
+
+
+findOffendingCharacter <- function(x, maxStringLength=10000){  
+  print(x)
+  for (c in 1:maxStringLength){
+    offendingChar <- substr(x,c,c)
+    #print(offendingChar) #uncomment if you want the indiv characters printed
+    #the next character is the offending multibyte Character
+  }    
+}
+
+lapply(wds1, findOffendingCharacter)
+
+wds2<-wds1[21170:length(wds1)]
+
+
+
+
+ 
+
+
+
+
+
+
+  #replace the \n notations
+wds2<-gsub("\n",replacement=" ",x=wds1)
+wds2<-gsub("\t",replacement=" ",x=wds2)
+wds2<-gsub("/",replacement=" ",x=wds2)
+
+
+#remove leading and trailing white spaces
+wds2<-gsub("^\\s+|\\s+$", "", wds2)
+#####################Deal wiht non UTF
+
+Encoding(wds1) <- "UTF-8"
+iconv(wds1, "UTF-8", "UTF-8",sub='') 
+
+corp1<-Corpus(VectorSource(wds1))
+####################################################
+corp1<-tm_map(corp1, content_transformer(function(x) iconv(enc2utf8(x), sub = "byte")))
+
+
+
+corp1<- tm_map(corp1, removePunctuation,lazy=TRUE)#remove punctuation
+corp1<- tm_map(corp1, tolower,lazy=TRUE)#Change to all lower case
+corp1 <- tm_map(corp1, removeNumbers,lazy=TRUE)#Remove numbers
+stpwds<-stopwords('english')
+#stpwds<-stpwds[!(stpwds%in%c('i'))]
+corp1 <- tm_map(corp1, removeWords, stpwds,lazy=TRUE)#remove stop words
+#########################################
+#AddWds<-c("stopped","stop","due")
+#corp.yes <- tm_map(corp.yes, removeWords, rmwds)#remove additional words
+#########################################
+wd3<-unlist(inspect(corp1))
+#Remove single letter words
+gsub("\\s[:a-z:]\\s"," ",wd3,ignore.case = T)
+#Remove excess whitespaces
+wd3<-stripWhitespace(wd3)
+
+#Do some housekeeping
+rm(corp1)
+rm(wds1)
+
+corp2<-Corpus(VectorSource(wd3))
+#Create TDM
+get.tdm <- function(doc.vec) {
+  doc.corpus <- Corpus(VectorSource(doc.vec))
+  control <- list(stopwords=FALSE, removePunctuation=FALSE, removeNumbers=TRUE,
+                  minDocFreq=4)
+  doc.dtm <- TermDocumentMatrix(doc.corpus, control) 
+  return(doc.dtm)
+}
+corp2.tdm <- get.tdm(wd3)
+
+corp2.matrix <- as.matrix(corp2.tdm)
+
+
+corp2.counts<-slam::row_sums(corp2.tdm, na.rm = T)
+
+corp2.df <- data.frame(cbind(names(corp2.counts),
+                           as.numeric(corp2.counts)), stringsAsFactors=FALSE) 
+
+names(corp2.df) <- c("term","frequency") 
+corp2.df$frequency <- as.numeric(corp2.df$frequency)
+
+corp2.df<-corp2.df[order(corp2.df$frequency),]
+
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+write.table(corp2.df, file = "word_freq_cleaned.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+#read in the freq table and remove all words with 10 or less mentions
+
+
+
+###################################
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
