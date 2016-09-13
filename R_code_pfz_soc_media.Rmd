@@ -87,12 +87,13 @@ Apparently with a total of 24,164,963,441 views
 ```{r}
 library(tm)
 library(slam)
-wd_dict_pth<-"/Users/AndyC/Dropbox/rdata/text_analysis_ref/most_common_words/google-10000-english-master/google-10000-english-usa.txt"
+
 
 wds1<-as.character(dat4$post)
 
 #wds2<-paste(wds1,collapse=" ")
 
+#At this point the text was transfered to notepad++ and using the search and replace function non ASCI characters were removed manually
 
 findOffendingCharacter <- function(x, maxStringLength=10000){  
   print(x)
@@ -188,5 +189,47 @@ write.table(corp2.df, file = "word_freq_cleaned.csv", sep = ",", col.names = NA,
 
 ###################################
 ```
+Set a new point to read in and process the word frequency table
+
+```{r}
+wd_dict_pth<-"/Users/AndyC/Dropbox/rdata/text_analysis_ref/most_common_words/google-10000-english-master/google-10000-english-usa.txt"
+options(stringsASFactors=FALSE)
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+dat5<-read.delim(file="word_freq_cleaned.csv",header=T,sep=",",as.is=TRUE)
+
+dat5<-dat5[dat5$frequency>20,]
+dat5<-dat5[-nrow(dat5),]
+
+cmn_wds<-read.delim(file=wd_dict_pth,header=T,sep="\t",as.is=TRUE)
+cmn_wds<-as.vector(cmn_wds[,1])
+
+#Remove common words US
+dat5<-dat5[!(dat5$term%in%cmn_wds),]
+#save the remnant
+dat5<-dat5[order(dat5$term),]
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+write.table(dat5, file = "word_freq_non_frequent.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+
+```
+Analysis of topics
+```{r}
+topics1<-substring(dat4$thread,1,100)
+
+cnts<-table(topics1)
+
+topics2<-data.frame(matrix("",length(cnts),2))
+colnames(topics2)<-c("topic","count")
+topics2[,1]<-names(cnts)
+topics2[,2]<-as.numeric(cnts)
 
 
+```
+Location
+```{r}
+locat1<-unique(dat4[,c("username","location")])
+locat1<-locat1[!(is.na(locat1$location)),]
+
+
+locat<-na.omit(dat4$location)
+
+```
