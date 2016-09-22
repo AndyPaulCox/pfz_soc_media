@@ -485,7 +485,8 @@ c1<-c1[,grep("_flag11",colnames(c1))]
 
 write.table(c1,file = "term_correlations_filtered.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
 
-library(corrplot)
-corrplot(c1, method="circle")
+c2<-c1
+c2[c2<0]<-0
+
 write.table(c2,file = "term_correlations_filtered_pos.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
 ```
