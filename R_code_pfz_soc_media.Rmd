@@ -65,12 +65,18 @@ length(sel1c)
 dat4<-dat3[c(sel1a,sel1b,sel1c),]
 dim(dat4)
 
+dat44<-dat4
+for(i in 1:nrow(dat4))dat44$post[i]<-as.character(unlist(strsplit(dat4$post[i],"wrote: ",fixed=F))[2])
+
+dat_pos
+
+
 head(dat4$info_block,100)
 setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
 write.table(dat4, file = "BCher_hr.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
 ```
 Open the file containing posts from the target population only, supressing conversion to factors
-
+At this point the text was transfered to notepad++ and using the search and replace function non ASCI characters were removed manually
 ```{r}
 options(stringsASFactors=FALSE)
 setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
@@ -79,64 +85,36 @@ dat4<-read.delim(file="BCher_hr2.txt",header=T,sep=",",as.is=TRUE)
 nrow(dat4)
 length(unique(dat4$username))
 summary(as.numeric(table(dat4$username)))
+#Remove frist common part of post wiht date
+for(i in 1:nrow(dat4))dat4$post[i]<-as.character(unlist(strsplit(dat4$post[i],"wrote: ",fixed=F))[2])
+#Need to emove duplicates
+dat4<-dat4[!(duplicated(dat4$post)),]
+dat4<-dat4[(nchar(dat4$post)>15),]
+write.table(dat4, file = "post_dedup_remmultiB.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+#This file is the sub population of interest wiht non UTF-* characters removed in the posts section
 ```
 
-214,896 posts from 1,156 users wiht a median of 8 posts each and a mead of 185.6 posts per user. Minimum of 1 post and maximum of 18,050 posts.
+43,521 posts from 1,100 users wiht a median of 8 posts each and a mead of 185.6 posts per user. Minimum of 1 post and maximum of 18,050 posts.
 Apparently with a total of 24,164,963,441 views
+
+Clean and remove stopwords and create word frequency table
 
 ```{r}
 library(tm)
 library(slam)
 
+options(stringsASFactors=FALSE)
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+dat5<-read.delim(file="/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/posts_final/post_dedup_remmultiB.csv",header=T,sep=",",as.is=TRUE)
 
-wds1<-as.character(dat4$post)
-
+wds1<-as.character(dat5$post)
 #wds2<-paste(wds1,collapse=" ")
-
-#At this point the text was transfered to notepad++ and using the search and replace function non ASCI characters were removed manually
-
-findOffendingCharacter <- function(x, maxStringLength=10000){  
-  print(x)
-  for (c in 1:maxStringLength){
-    offendingChar <- substr(x,c,c)
-    #print(offendingChar) #uncomment if you want the indiv characters printed
-    #the next character is the offending multibyte Character
-  }    
-}
-
-lapply(wds1, findOffendingCharacter)
-
-wds2<-wds1[21170:length(wds1)]
-
-
-
-
- 
-
-
-
-
-
-
-  #replace the \n notations
-wds2<-gsub("\n",replacement=" ",x=wds1)
-wds2<-gsub("\t",replacement=" ",x=wds2)
-wds2<-gsub("/",replacement=" ",x=wds2)
-
-
-#remove leading and trailing white spaces
-wds2<-gsub("^\\s+|\\s+$", "", wds2)
-#####################Deal wiht non UTF
 
 Encoding(wds1) <- "UTF-8"
 iconv(wds1, "UTF-8", "UTF-8",sub='') 
-
 corp1<-Corpus(VectorSource(wds1))
 ####################################################
 corp1<-tm_map(corp1, content_transformer(function(x) iconv(enc2utf8(x), sub = "byte")))
-
-
-
 corp1<- tm_map(corp1, removePunctuation,lazy=TRUE)#remove punctuation
 corp1<- tm_map(corp1, tolower,lazy=TRUE)#Change to all lower case
 corp1 <- tm_map(corp1, removeNumbers,lazy=TRUE)#Remove numbers
@@ -181,7 +159,7 @@ corp2.df$frequency <- as.numeric(corp2.df$frequency)
 
 corp2.df<-corp2.df[order(corp2.df$frequency),]
 
-setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/word_freq_final")
 write.table(corp2.df, file = "word_freq_cleaned.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
 #read in the freq table and remove all words with 10 or less mentions
 
@@ -189,12 +167,12 @@ write.table(corp2.df, file = "word_freq_cleaned.csv", sep = ",", col.names = NA,
 
 ###################################
 ```
-Set a new point to read in and process the word frequency table
+Set a new point to read in and process the word frequency table. Remove 10k most common words and create a new word frequency table, this is likely to contain all the chemotherapies
 
 ```{r}
 wd_dict_pth<-"/Users/AndyC/Dropbox/rdata/text_analysis_ref/most_common_words/google-10000-english-master/google-10000-english-usa.txt"
 options(stringsASFactors=FALSE)
-setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/word_freq_final")
 dat5<-read.delim(file="word_freq_cleaned.csv",header=T,sep=",",as.is=TRUE)
 
 dat5<-dat5[dat5$frequency>20,]
@@ -207,23 +185,11 @@ cmn_wds<-as.vector(cmn_wds[,1])
 dat5<-dat5[!(dat5$term%in%cmn_wds),]
 #save the remnant
 dat5<-dat5[order(dat5$term),]
-setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+
 write.table(dat5, file = "word_freq_non_frequent.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
 
 ```
-Analysis of topics
-```{r}
-topics1<-substring(dat4$thread,1,100)
 
-cnts<-table(topics1)
-
-topics2<-data.frame(matrix("",length(cnts),2))
-colnames(topics2)<-c("topic","count")
-topics2[,1]<-names(cnts)
-topics2[,2]<-as.numeric(cnts)
-
-
-```
 Location
 ```{r}
 locat1<-unique(dat4[,c("username","location")])
@@ -232,4 +198,294 @@ locat1<-locat1[!(is.na(locat1$location)),]
 
 locat<-na.omit(dat4$location)
 
+```
+#Analysis of post content after substitutiton of chemotherapies and selctions of posts
+
+```{r}
+rm(list = ls())
+options(stringsASFactors=FALSE)
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+dat1<-read.delim(file="/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/posts_final/post_dedup_remmultiB.csv",header=T,sep=",",as.is=TRUE)
+
+dict1<-read.delim(file="/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/Dictionary/word_tags_master.csv",header=T,sep=",",as.is=TRUE)
+
+chemo1<-dict1$term[dict1$study_specific=="chemotherapy"]
+drugs1<-dict1$term[dict1$study_specific=="bc"]
+
+for(p in 1:nrow(dat1)){
+  for(w in 1:length(chemo1)){
+dat1$post[p]<-gsub(chemo1[w],"chemotherapy",dat1$post[p],ignore.case = T)
+}}
+
+for(p in 1:nrow(dat1)){
+  for(w in 1:length(drugs1)){
+dat1$post[p]<-gsub(drugs1[w],"chemo_flag99",dat1$post[p],ignore.case = T)
+  }}
+
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/posts_final")
+
+write.table(dat1, file = "t_dedup_remmultiB_chemoReplace.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+
+#Select only those that contain teh keywords
+sel1<-grep("chemotherapy",dat1$post,ignore.case=T)
+sel2<-grep("chemo_flag99",dat1$post,ignore.case=T)
+
+sel3<-unique(c(sel1,sel2))
+
+dat2<-dat1[sel3,]
+
+write.table(dat2, file = "only_chemo.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+```
+#Now move on with word and term frequencies
+
+```{r}
+dat2<-read.delim(file="/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/posts_final/only_chemo.csv",header=T,sep=",",as.is=TRUE)
+
+wds1<-as.character(dat2$post)
+#wds2<-paste(wds1,collapse=" ")
+
+Encoding(wds1) <- "UTF-8"
+iconv(wds1, "UTF-8", "UTF-8",sub='') 
+corp1<-Corpus(VectorSource(wds1))
+####################################################
+corp1<-tm_map(corp1, content_transformer(function(x) iconv(enc2utf8(x), sub = "byte")))
+corp1<- tm_map(corp1, removePunctuation,lazy=TRUE)#remove punctuation
+corp1<- tm_map(corp1, tolower,lazy=TRUE)#Change to all lower case
+corp1 <- tm_map(corp1, removeNumbers,lazy=TRUE)#Remove numbers
+stpwds<-stopwords('english')
+#stpwds<-stpwds[!(stpwds%in%c('i'))]
+corp1 <- tm_map(corp1, removeWords, stpwds,lazy=TRUE)#remove stop words
+#########################################
+#AddWds<-c("stopped","stop","due")
+#corp.yes <- tm_map(corp.yes, removeWords, rmwds)#remove additional words
+#########################################
+wd3<-unlist(inspect(corp1))
+#Remove single letter words
+gsub("\\s[:a-z:]\\s"," ",wd3,ignore.case = T)
+#Remove excess whitespaces
+wd3<-stripWhitespace(wd3)
+
+#Do some housekeeping
+rm(corp1)
+rm(wds1)
+
+corp2<-Corpus(VectorSource(wd3))
+#Create TDM
+get.tdm <- function(doc.vec) {
+  doc.corpus <- Corpus(VectorSource(doc.vec))
+  control <- list(stopwords=FALSE, removePunctuation=FALSE, removeNumbers=TRUE,
+                  minDocFreq=4)
+  doc.dtm <- TermDocumentMatrix(doc.corpus, control) 
+  return(doc.dtm)
+}
+corp2.tdm <- get.tdm(wd3)
+
+corp2.matrix <- as.matrix(corp2.tdm)
+
+
+corp2.counts<-slam::row_sums(corp2.tdm, na.rm = T)
+
+corp2.df <- data.frame(cbind(names(corp2.counts),
+                           as.numeric(corp2.counts)), stringsAsFactors=FALSE) 
+
+names(corp2.df) <- c("term","frequency") 
+corp2.df$frequency <- as.numeric(corp2.df$frequency)
+
+corp2.df<-corp2.df[order(corp2.df$frequency),]
+
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/word_freq_final")
+write.table(corp2.df, file = "word_freq_target_cleaned.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/cleaned_posts")
+write.table(wd3, file = "posts_target_cleaned.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+#read in the freq table and remove all words with 10 or less mentions
+
+
+#Now N grams
+
+#############################
+# BI / Trigrams
+require(RWeka)
+dat2<-read.delim(file="/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/posts_final/only_chemo.csv",header=T,sep=",",as.is=TRUE)
+
+TrigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 3))
+tdm <- TermDocumentMatrix(wd3, control = list(tokenize = TrigramTokenizer))
+tdm <- removeSparseTerms(tdm, 0.95)
+inspect(tdm[1:5,1:5])
+###############################
+m <- as.matrix(tdm)
+x<-rowSums(m)
+ names(x)<-rownames(m)
+ 
+findFreqTerms(tdm, lowfreq=5)#,highfreq=26)
+
+################################################
+mydata.df <- as.data.frame(inspect(tdm))
+ mydata.df<-t(mydata.df)
+# inspect dimensions of the data frame
+nrow(mydata.df)
+ncol(mydata.df)
+colnames(mydata.df)<-1:ncol(mydata.df)
+
+#Now the data frame (a standard data structure in R) contains a bag of words (specifically, 1-grams) which are simple frequency counts.
+ #Though the structure is lost, it retains much information and is simple to use.
+ #The data frame is ready for cluster analysis using a cluster analysis function available in R core.
+ #The following code is basically copied from Robert I. Kabacof’s “Cluster Analysis” page.
+}
+
+#Analysis of topics from thread titles
+#The code below takes all thread titles counts frequency of posts within each and lists as a table 
+
+```{r}
+options(stringsASFactors=FALSE)
+
+dat6<-read.delim(file="/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/posts_final/only_chemo.csv",header=T,sep=",",as.is=TRUE)
+topics1<-substring(dat6$thread,1,100)
+
+cnts<-table(topics1)
+
+topics2<-data.frame(matrix("",length(cnts),2))
+colnames(topics2)<-c("topic","count")
+topics2[,1]<-names(cnts)
+topics2[,2]<-as.numeric(cnts)
+topics2<-topics2[order(topics2$count,decreasing=T),]
+topics2$views<-0
+#Create the views column
+for(j in 1:nrow(topics2))
+ topics2$views[j]<- dat6$views_n[dat6$thread==topics2$topic[j]][1]
+
+topics2$date<-0
+topics2$date_diff<-0
+topics2$view_rate<-0
+topics2$post_rate<-0
+#Standardise the 
+#Create the date column
+#dat6$date_posted<- gsub("\\s+"," ",dat6$date_posted)
+dat6$date_posted<-gsub("(^[[:space:]]+|[[:space:]]+$)", "", dat6$date_posted)
+for(j in 1:nrow(topics2)){
+ temp<- sort(substr(dat6$date_posted[dat6$thread==topics2$topic[j]],1,12))
+temp<-gsub(",","",temp)
+
+topics2$date[j]<- sort(as.Date(temp,format = "%B %d %Y"),descending=F)[1]
+topics2$date_diff[j] <- as.numeric(as.Date("2016-09-13")-topics2$date[j])
+}
+topics2$view_rate<-as.numeric(topics2$views)/as.numeric(topics2$date_diff)
+topics2$post_rate<-as.numeric(topics2$count)/as.numeric(topics2$date_diff)
+
+topics2<-topics2[order(topics2$view_rate,decreasing=T),]
+
+
+#remove the 'Topic:' part formt he thread titles
+for(i in 1:nrow(topics2))topics2$topic[i]<-as.character(unlist(strsplit(topics2$topic[i],"Topic: ",fixed=F))[2])
+
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/thread_title_final")
+write.table(topics2, file = "freq_thread_titles_target.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+```
+
+dat6$post[grep("Facing the Future",dat6$thread,ignore.case=T)]
+
+dt1$post[grep("Radiation and pain",dt1$thread,ignore.case=T)]
+
+
+
+
+dat_rand<-dat6$post[sample(1:nrow(dat6),nrow(dat6))]
+
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/randomized_posts")
+
+
+write.table(dat_rand,file = "randomized_target_posts.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+
+```
+#Analysis of drug classes wiht side effects after standardisation of words and terms
+
+```{r}
+rm(list = ls())
+options(stringsASFactors=FALSE)
+dat6<-read.delim(file="/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/posts_final/only_chemo.csv",header=T,sep=",",as.is=TRUE)
+
+#grab only the posts
+dat6p<-as.character(dat6$post)
+#Load dictionaries
+
+dict_drugnames<-read.delim(file="/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/Dictionary/BC_druganmes_dict.csv",header=T,sep=",",as.is=TRUE)
+
+dict_se<-read.delim(file="/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er/Dictionary/side_effects_dict.csv",header=T,sep=",",as.is=TRUE)
+
+#replace all drugnames wiht higher level class label
+patterns1<-as.character(dict_drugnames$term)
+repl1<-as.character(dict_drugnames$class_flag)
+
+for(trm in 1:length(patterns1))dat6p<-gsub(patterns1[trm],paste0(" ",repl1[trm]," "),dat6p,ignore.case=T)
+
+
+#Replace all SE with standardised label
+patterns2<-as.character(dict_se$SE)
+repl2<-as.character(dict_se$class)
+
+for(trm in 1:length(patterns2))dat6p<-gsub(patterns2[trm],paste0(" ",repl2[trm]," "),dat6p,ignore.case=T)
+
+
+keepwords<-c(unique(repl1),unique(repl2))
+
+keep_words <- function(text, keep) {
+  words <- strsplit(text, " ")[[1]]
+  txt <- paste(words[words %in% keep], collapse = " ")
+  return(txt)
+}
+
+dat7p<-dat6p
+for(p in 1:length(dat6p))dat7p[p]<-keep_words(dat6p[p],keepwords)
+
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+write.table(dat7p,file = "JustFlagTerms_posts.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+
+
+#Create documewnt term matrix
+library(tm)
+library(slam)
+
+
+wds1<-as.character(dat7p)
+#Remove excess whitespaces
+wds1<-stripWhitespace(wds1)
+
+
+Encoding(wds1) <- "UTF-8"
+iconv(wds1, "UTF-8", "UTF-8",sub='') 
+corp1<-Corpus(VectorSource(wds1))
+####################################################
+corp1<-tm_map(corp1, content_transformer(function(x) iconv(enc2utf8(x), sub = "byte")))
+#Create TDM
+get.tdm <- function(doc.vec) {
+  doc.corpus <- Corpus(VectorSource(doc.vec))
+  control <- list(stopwords=FALSE, removePunctuation=FALSE, removeNumbers=FALSE,
+                  minDocFreq=4)
+  doc.dtm <- TermDocumentMatrix(doc.corpus, control) 
+  return(doc.dtm)
+}
+corp2.tdm <- get.tdm(wds1)
+
+corp2.matrix <- as.matrix(corp2.tdm)
+
+library(igraph)
+
+
+corp2.tdm <- if (inherits(corp2.tdm , "TermDocumentMatrix")) t(corp2.tdm ) else corp2.tdm 
+corp2.dtm  <- as.matrix(corp2.tdm )
+c <- cor(corp2.dtm)
+
+setwd("/Users/AndyC/Dropbox/rdata/pfizerSocMedBC/data/BC_stg5_her2_er")
+write.table(c,file = "term_correlations.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+
+#create correation matrix with only drug classes in columns and SE flags in rows
+
+c1<-c[grep("_flag99",rownames(c)),]
+c1<-c1[,grep("_flag11",colnames(c1))]
+
+write.table(c1,file = "term_correlations_filtered.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
+
+library(corrplot)
+corrplot(c1, method="circle")
+write.table(c2,file = "term_correlations_filtered_pos.csv", sep = ",", col.names = NA, na="NA", qmethod = "double")
 ```
