@@ -333,6 +333,8 @@ colnames(mydata.df)<-1:ncol(mydata.df)
  #The following code is basically copied from Robert I. Kabacof’s “Cluster Analysis” page.
 }
 
+
+##EVIE FROM HERE
 #Analysis of topics from thread titles
 #The code below takes all thread titles counts frequency of posts within each and lists as a table 
 
